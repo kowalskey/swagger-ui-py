@@ -157,6 +157,27 @@ class Interface(object):
         self._app.router.add_get(self._uri('/swagger.json'), swagger_config_handler)
         self._app.router.add_static(self._uri('/'), path='{}/'.format(self.static_dir))
 
+    def _starlette_handler(self):
+        from starlette.responses import HTMLResponse,JSONResponse
+        from starlette.staticfiles import StaticFiles
+
+        def swagger_doc_handler(request):
+            return HTMLResponse(self.doc_html)
+
+        def swagger_editor_handler(request):
+            return HTMLResponse(self.editor_html)
+
+        def swagger_config_handler(request):
+            return JSONResponse(self.get_config(request.url.netloc))
+
+        self._app.add_route(self._uri(), swagger_doc_handler, methods=["GET"])
+
+        if self._editor:
+            self._app.add_route(self._uri('/editor'), swagger_editor_handler, methods=["GET"])
+
+        self._app.add_route(self._uri('/swagger.json'), swagger_config_handler, methods=["GET"])
+        self._app.mount(self._uri('/'), StaticFiles(directory='{}/'.format(self.static_dir)))
+
     def _sanic_handler(self):
         from sanic import response
         from sanic.blueprints import Blueprint
@@ -237,6 +258,13 @@ class Interface(object):
                 import quart
                 if isinstance(self._app, quart.Quart):
                     return self._quart_handler()
+            except ImportError:
+                pass
+
+            try:
+                import starlette.applications
+                if isinstance(self._app, starlette.applications.Starlette):
+                    return self._starlette_handler()
             except ImportError:
                 pass
 
